@@ -1,0 +1,578 @@
+using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations;
+
+namespace EventTracker.Models
+{
+    public class Ticket 
+    {
+        // Implement your code here
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+        public decimal Price { get; set; }
+        public int EventId { get; set; }
+        public Event Event { get; set; }
+        public int AttendeeId { get; set; }
+        public Attendee Attendee { get; set; }
+
+
+
+
+
+    }
+}
+
+
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace EventTracker.Models
+{
+    public class Event
+    {
+
+
+        // Implement your code here
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public DateTime Date { get; set; }
+        public string Location { get; set; }
+        public int MaxAttendees { get; set; }
+        public ICollection<Ticket> Tickets { get; set; }
+    }
+}
+
+
+using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations;
+
+namespace EventTracker.Models
+{
+    public class Attendee
+    {
+        // Implement your code here
+        [Key]
+        [DatabaseGenerated.(DatabaseGeneratedOption.Identity)]
+       public int Id { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public ICollection<Ticket> Tickets { get; set; }
+    }
+}
+
+
+    public interface ITicket
+    {
+        // Implement your code here
+
+               Task<IEnumerable<Ticket>> GetTicketsByEvent(int eventId);
+        Task<Ticket> GetMostExpensiveTicket();
+        Task<Ticket> GetTicketWithHighestAveragePricePerEvent();
+
+    }
+}
+
+    public interface IEvent
+    {
+        // Implement your code here
+
+        Task<bool> AddEvent(Event eventObj);
+        Task<bool> UpdateEventLocation(int id, string location);
+        Task<bool> DeleteEvent(int eventId);
+        Task<Event> GetEventWithMinimumTicketsSold();
+    }
+}
+   public interface IAttendee
+   {
+       // Implement your code here
+
+
+
+       Task<IEnumerable<Attendee>> GetAttendeesByEvent(int eventId);
+       Task<Attendee> GetAttendeeWithMostEventsAttended();
+       Task<Attendee> GetAttendeeWithHighestTotalTicketPrice();
+   }
+
+using EventTracker.Data;
+using EventTracker.Interfaces;
+using EventTracker.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace EventTracker.Repositories
+{
+    public class TicketRepository : ITicket
+    {
+
+        EventTrackerContext _Context;
+        public TicketRepository(EventTrackerContext Context)
+        {
+            _Context = Context;
+        }
+
+
+        public async Task<Ticket> GetMostExpensiveTicket()
+        {
+
+            var res = await _Context.Tickets.MaxAsync(c => c.Price);
+            return _Context.Tickets.Where(c => c.Price == res).FirstOrDefault();
+        }
+
+        public async Task<IEnumerable<Ticket>> GetTicketsByEvent(int eventId)
+        {
+            return await _Context.Tickets.Where(c => c.EventId == eventId).ToListAsync();
+        }
+
+        public async Task<Ticket> GetTicketWithHighestAveragePricePerEvent()
+        {
+            var res = await _Context.Tickets.GroupBy(c => c.EventId).Select(x => new
+            {
+                EventId = x.Key,
+                AveragePrice = x.Average(d => d.Price)
+            }).
+            OrderByDescending(e => e.AveragePrice).FirstOrDefaultAsync();
+            return await _Context.Tickets.Where(c => c.EventId == res.EventId).FirstOrDefaultAsync();
+        }
+
+
+
+        // Implement your code here
+
+        //EventTrackerContext _context;
+        //public TicketRepository(EventTrackerContext context)
+        //{
+        //    _context = context;
+        //}
+        //public async Task<Ticket> GetMostExpensiveTicket()
+        //{
+        //    var res = await _context.Tickets.OrderByDescending(t => t.Price).ToListAsync();
+        //    if (res == null)
+        //        return null;
+        //    else
+        //    {
+        //        return res.First();
+        //    }
+
+        //}
+
+        //public async Task<IEnumerable<Ticket>> GetTicketsByEvent(int eventId)
+        //{
+
+        //    var t = await _context.Tickets.Where(t => t.EventId == eventId).ToListAsync();
+        //    if (t.Count<0)
+        //    {
+        //        return Enumerable.Empty<Ticket>();
+        //    }
+        //    else
+        //    {
+        //        return t;
+        //    }
+        //}
+
+        //public async  Task<Ticket> GetTicketWithHighestAveragePricePerEvent()
+        //{
+        //    var res = _context.Tickets.GroupBy(t => t.EventId).Select
+        //        (t => new { EventId = t.Key, AveragePrice = t.Average(t => t.Price) }).OrderByDescending(t => t.AveragePrice).FirstOrDefault();
+
+        //    if (res == null)
+        //        return null;
+        //    else
+        //    {
+        //        return await _context.Tickets.FirstOrDefaultAsync(t => t.EventId == res.EventId);
+        //    }
+        //}
+    }
+}
+
+
+using EventTracker.Data;
+using EventTracker.Interfaces;
+using EventTracker.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace EventTracker.Repositories
+{
+    public class EventRepository : IEvent
+    {
+        EventTrackerContext _context;
+
+        public EventRepository(EventTrackerContext context)
+        {
+            _context = context;
+        }
+        // Implement your code here
+        public async Task<bool> AddEvent(Event eventObj)
+        {
+            
+            var res =  _context.Events.FirstOrDefault(e=> e.Id == eventObj.Id);
+            if (res == null)
+            {
+                
+                _context.Events.Add(eventObj);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            else 
+            {
+                return false;
+            }
+
+            //throw new NotImplementedException();
+        }
+
+        public async Task<bool> DeleteEvent(int eventId)
+        {          
+
+
+
+            var res = _context.Events.FirstOrDefault(e => e.Id == eventId);
+            if(res!=null)
+            {
+                _context.Events.Remove(res);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+
+
+        }
+
+        public async Task<Event> GetEventWithMinimumTicketsSold()
+        {
+            
+            var res = await _context.Events.OrderBy(c=> c.Tickets.Count).FirstOrDefaultAsync();
+            if (res == null)
+            {
+                return null;
+            }
+            else
+            {
+                return res;
+            }
+
+
+        }
+
+        public async Task<bool> UpdateEventLocation(int id, string location)
+        {
+            var res = _context.Events.FirstOrDefault(e => e.Id == id);
+            if (res == null)
+            {
+                return false;
+            }
+            else
+            {
+                res.Location = location;
+                await _context.SaveChangesAsync();
+                return true;
+            }
+        }
+
+
+
+    }
+}
+
+using EventTracker.Data;
+using EventTracker.Interfaces;
+using EventTracker.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace EventTracker.Repositories
+{
+    public class AttendeeRepository : IAttendee
+    {
+        // Implement your code here
+
+        EventTrackerContext _context;
+        public AttendeeRepository(EventTrackerContext context)
+        {
+            _context = context;
+        }
+        public async Task<IEnumerable<Attendee>> GetAttendeesByEvent(int eventId)
+        {
+            return await _context.Tickets.Where(c => c.EventId == eventId).Select(d => d.Attendee).ToListAsync();            
+        }
+
+
+        public async Task<Attendee> GetAttendeeWithMostEventsAttended()
+        {
+            var res = await _context.Tickets.GroupBy(c => c.AttendeeId).Select(x => new
+            {
+                AttendeeId = x.Key,
+                EventCount = x.Count()
+            }).
+            OrderByDescending(x => x.EventCount).FirstOrDefaultAsync();
+            return  _context.Attendees.Where(c => c.Id == res.AttendeeId).FirstOrDefault();
+        }
+         
+        //}
+        public async Task<Attendee> GetAttendeeWithHighestTotalTicketPrice()
+        {
+            var res = await _context.Tickets.GroupBy(c => c.AttendeeId).Select(x => new
+            {
+                AttendeeId = x.Key,
+                TotalPrice = x.Sum(s => s.Price)
+            }).
+            OrderByDescending(c => c.TotalPrice).FirstOrDefaultAsync();
+            return _context.Attendees.Where(c => c.Id == res.AttendeeId).FirstOrDefault();
+        }
+
+
+
+    }
+}
+
+
+using EventTracker.Interfaces;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EventTracker.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class TicketController : ControllerBase
+    {
+        // Implement your code here
+        ITicket _TicketRepository;
+        public TicketController(ITicket TicketRepository)
+        {
+            _TicketRepository = TicketRepository;
+        }
+        [HttpGet("eventId")]
+        public async Task<IActionResult> GetTicketsByEvent([FromBody] int eventId)
+        {
+            var res = await _TicketRepository.GetTicketsByEvent(eventId);
+            if (res == null)
+            {
+                return NotFound("No records found");
+            }
+            else
+            {
+                return Ok(res);
+            }
+        }
+        [HttpGet("most-expensive-ticket")]
+        public async Task<IActionResult> GetMostExpensiveTicket()
+        {
+            var res = await _TicketRepository.GetMostExpensiveTicket();
+            if (res == null)
+            {
+                return NotFound("No records found");
+            }
+            else
+            {
+                return Ok(res);
+            }
+        }
+        [HttpGet("highest-average-price-per-event")]
+        public async Task<IActionResult> GetTicketWithHighestAveragePricePerEvent()
+        {
+            var res = await _TicketRepository.GetTicketWithHighestAveragePricePerEvent();
+            if (res == null)
+            {
+                return NotFound("No records found");
+            }
+            else
+            {
+                return Ok(res);
+            }
+        }
+    }
+}
+
+
+using EventTracker.Interfaces;
+using EventTracker.Models;
+using EventTracker.Repositories;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EventTracker.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class EventController : ControllerBase
+    {
+        // Implement your code here
+        IEvent _EventRepository;
+        public EventController(IEvent EventRepository)
+        {
+            _EventRepository = EventRepository;
+        }
+
+        [HttpPost("AddEvent")]
+        public async Task<IActionResult> AddEvent([FromBody] Event e)
+        { 
+            var res = await _EventRepository.AddEvent(e);
+            if (res)
+            {
+                return Ok();
+            }
+          
+            else
+            {
+                return BadRequest();
+            }
+        }
+        [HttpPut("UpdateEventLocation/{id}/{location}")]
+
+        public async Task<IActionResult> UpdateEventLocation([FromRoute] int id, [FromRoute] string location)
+        { 
+            var res = await _EventRepository.UpdateEventLocation(id, location);
+            if (res)
+                
+            {
+                return Ok();
+            }
+            else
+            {
+                return BadRequest();
+            }
+        }
+
+        [HttpDelete("DeleteEvent/{id}")]
+
+        public async Task<IActionResult> DeleteEvent([FromRoute] int id)
+        {
+         var res = await _EventRepository.DeleteEvent(id);
+            if (res)
+            {
+                return Ok();
+            }
+            else
+            {
+                return BadRequest();
+            }
+        }
+
+        [HttpGet("minimum-tickets-sold")]
+        public async Task<IActionResult> GetEventWithMinimumTicketsSold()
+        {
+            var res = await _EventRepository.GetEventWithMinimumTicketsSold();
+            if (res == null)
+            {
+                return NotFound("No records found");
+            }
+            else
+            {
+                return Ok(res);
+            }
+        }
+
+
+
+
+    }
+}
+
+using EventTracker.Interfaces;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EventTracker.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class AttendeeController : ControllerBase
+    {
+        // Implement your code here
+        IAttendee _AttendeeRepository;
+        public AttendeeController(IAttendee AttendeeRepository)
+        {
+            _AttendeeRepository = AttendeeRepository;
+        }
+        [HttpGet("event/{eventId}")]
+
+
+        public async Task<IActionResult> GetAttendeesByEvent([FromBody] int eventId)
+        {
+
+            var res = await _AttendeeRepository.GetAttendeesByEvent(eventId);
+            if (res == null)
+            {
+                return NotFound("No records found");
+            }
+            else
+            {
+                return Ok(res);
+            }
+
+        }
+        [HttpGet("most-events")]
+        public async Task<IActionResult> GetAttendeeWithMostEventsAttended()
+        {
+            var res = await _AttendeeRepository.GetAttendeeWithMostEventsAttended();
+            if (res == null)
+            {
+                return NotFound("No records found");
+            }
+            else
+            {
+                return Ok(res);
+            }
+        }
+        [HttpGet("highest-total-ticket-price")]
+        public async Task<IActionResult> GetAttendeeWithHighestTotalTicketPrice()
+        {
+            var res = await _AttendeeRepository.GetAttendeeWithHighestTotalTicketPrice();
+            if (res == null)
+            {
+                return NotFound("No records found");
+            }
+            else
+            {
+                return Ok(res);
+            }
+        }
+    }
+
+   
+
+}
+
+using EventTracker.Data;
+using EventTracker.Interfaces;
+using EventTracker.Repositories;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddDbContext<EventTrackerContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DBConnection")));
+
+// Implement your code here to register all the services.
+builder.Services.AddScoped<IEvent, EventRepository>();
+builder.Services.AddScoped<IAttendee, AttendeeRepository>();
+builder.Services.AddScoped<ITicket, TicketRepository>();
+
+
+
+
+builder.Services.AddControllers();
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
